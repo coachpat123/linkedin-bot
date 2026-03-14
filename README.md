@@ -361,6 +361,14 @@ sudo apt-get install -y libglib2.0-0 libx11-6 libxext6 libxrender1 libxtst6 libx
 playwright install chromium
 ```
 
+**"Critical selectors are broken" / LinkedIn updated their HTML**
+The bot runs a health check before every batch. If LinkedIn changed their HTML structure you'll see exactly which selector broke and instructions to fix it. To update a selector:
+1. Open your LinkedIn job search in Chrome
+2. Right-click a job card → **Inspect**
+3. Find the `<li>` element that wraps each job listing
+4. Copy its selector and update `SELECTORS['job_cards']` near the top of `linkedin_bot.py`
+5. Open an issue on this repo so others get the fix too
+
 **The bot gets stuck on a form**
 Built-in stuck detection skips after 3 failed attempts and moves to the next job. Some multi-page forms with unusual questions will get skipped — that's expected.
 

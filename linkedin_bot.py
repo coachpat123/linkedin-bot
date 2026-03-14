@@ -539,11 +539,11 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
 
     try:
         try:
-            title = card.locator(".job-card-list__title, strong").first.inner_text().strip()
+            title = card.locator(SELECTORS["job_title"]).first.inner_text().strip()
         except Exception:
             pass
         try:
-            company = card.locator(".job-card-container__company-name").first.inner_text().strip()
+            company = card.locator(SELECTORS["company_name"]).first.inner_text().strip()
         except Exception:
             pass
 
@@ -552,7 +552,7 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
 
         # Already applied?
         try:
-            if card.locator(".job-card-container__footer-item:has-text('Applied')").is_visible():
+            if card.locator(SELECTORS["already_applied"]).is_visible():
                 result["status"] = "already"
                 return result
         except Exception:
@@ -565,7 +565,7 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
 
         job_desc = f"{title} at {company}"
         try:
-            job_desc = page.locator(".jobs-description, .job-details-jobs-unified-top-card__job-insight").inner_text(timeout=5000)
+            job_desc = page.locator(SELECTORS["job_desc"]).inner_text(timeout=5000)
         except Exception:
             pass
 
@@ -739,6 +739,89 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────
+# SELECTOR HEALTH CHECK
+# ─────────────────────────────────────────────────────────────────
+
+# These are the CSS selectors the bot depends on.
+# If LinkedIn updates their HTML, these will break first.
+# Update them here and the whole bot benefits.
+SELECTORS = {
+    "job_cards":    "li[data-occludable-job-id]",
+    "job_title":    ".job-card-list__title, strong",
+    "company_name": ".job-card-container__company-name",
+    "easy_apply":   "button.jobs-apply-button:has-text('Easy Apply')",
+    "job_desc":     ".jobs-description, .job-details-jobs-unified-top-card__job-insight",
+    "already_applied": ".job-card-container__footer-item:has-text('Applied')",
+}
+
+def selector_health_check(page) -> bool:
+    """
+    Verify key LinkedIn selectors still work before running the full batch.
+    Prints a pass/fail for each one. Returns False if critical selectors are broken.
+    """
+    print("\n🔬 Running selector health check...")
+    print("   (If LinkedIn updated their HTML, broken selectors will show here)\n")
+
+    critical_ok = True
+
+    # Check job cards — the most critical selector
+    card_count = page.locator(SELECTORS["job_cards"]).count()
+    if card_count > 0:
+        print(f"  ✅ Job cards        ({SELECTORS['job_cards']}) — found {card_count}")
+    else:
+        print(f"  ❌ Job cards        ({SELECTORS['job_cards']}) — NOT FOUND")
+        print(f"     ↳ LinkedIn may have changed their job list HTML.")
+        print(f"     ↳ Open browser DevTools on the search page, inspect a job card,")
+        print(f"       and find the new selector. Update SELECTORS['job_cards'] in the script.")
+        critical_ok = False
+
+    # Check title and company on the first card (non-critical — bot falls back to empty string)
+    if card_count > 0:
+        first_card = page.locator(SELECTORS["job_cards"]).first
+        title_ok = first_card.locator(SELECTORS["job_title"]).count() > 0
+        company_ok = first_card.locator(SELECTORS["company_name"]).count() > 0
+        print(f"  {'✅' if title_ok   else '⚠️ '} Job title          ({SELECTORS['job_title']})")
+        print(f"  {'✅' if company_ok  else '⚠️ '} Company name       ({SELECTORS['company_name']})")
+        if not title_ok or not company_ok:
+            print(f"     ↳ Title/company parsing broke — applications will still submit")
+            print(f"       but folder names and logs will show blank company/title.")
+
+    # Check job description panel (non-critical — AI gets less context)
+    desc_ok = page.locator(SELECTORS["job_desc"]).count() > 0
+    print(f"  {'✅' if desc_ok else '⚠️ '} Job description    ({SELECTORS['job_desc']})")
+    if not desc_ok:
+        print(f"     ↳ Can't read job descriptions — AI cover letters will be generic.")
+
+    # Check Easy Apply button (non-critical — checked per-job, skipped if missing)
+    # Click first card to trigger the detail pane, then check
+    if card_count > 0:
+        try:
+            page.locator(SELECTORS["job_cards"]).first.click()
+            time.sleep(1.5)
+            easy_ok = page.locator(SELECTORS["easy_apply"]).count() > 0
+            print(f"  {'✅' if easy_ok else '⚠️ '} Easy Apply button  ({SELECTORS['easy_apply']})")
+            if not easy_ok:
+                print(f"     ↳ First job may not have Easy Apply, or selector changed.")
+                print(f"       The bot will still check each job individually.")
+        except Exception:
+            print(f"  ⚠️  Easy Apply button  — could not check (card click failed)")
+
+    print()
+
+    if not critical_ok:
+        print("  ⛔ Critical selectors are broken. The bot cannot find job cards.")
+        print("     LinkedIn likely updated their HTML. Steps to fix:")
+        print("     1. Open your LinkedIn job search in Chrome")
+        print("     2. Right-click a job card → Inspect")
+        print("     3. Find the <li> element that wraps each job")
+        print("     4. Update SELECTORS['job_cards'] at the top of the script")
+        print("     5. Open an issue at https://github.com/coachpat123/linkedin-bot")
+        print()
+
+    return critical_ok
+
+
+# ─────────────────────────────────────────────────────────────────
 # MAIN RUNNER
 # ─────────────────────────────────────────────────────────────────
 
@@ -809,7 +892,7 @@ def run_bulk_apply(search_url: str, max_jobs: int = 50):
                 input()
 
             try:
-                page.wait_for_selector("li[data-occludable-job-id]", timeout=15000)
+                page.wait_for_selector(SELECTORS["job_cards"], timeout=15000)
             except Exception:
                 pass
 
@@ -817,7 +900,12 @@ def run_bulk_apply(search_url: str, max_jobs: int = 50):
                 page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 time.sleep(1)
 
-            cards = page.locator("li[data-occludable-job-id]").all()
+            # Health check — verify selectors before committing to the full run
+            if not selector_health_check(page):
+                browser.close()
+                return
+
+            cards = page.locator(SELECTORS["job_cards"]).all()
             vc.tool_done("Grep", tid)
 
             print(f"  Found {len(cards)} job cards")
@@ -833,7 +921,7 @@ def run_bulk_apply(search_url: str, max_jobs: int = 50):
 
             i = 0
             while i < len(cards) and stats["applied"] < max_jobs:
-                cards = page.locator("li[data-occludable-job-id]").all()
+                cards = page.locator(SELECTORS["job_cards"]).all()
                 if i >= len(cards):
                     break
                 card = cards[i]
