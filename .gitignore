@@ -1,0 +1,26 @@
+# LinkedIn session (contains your login — never commit this)
+linkedin_cookies.json
+*_cookies.json
+
+# Application output
+Job Applications/
+applied_*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
