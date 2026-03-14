@@ -857,6 +857,7 @@ def run_bulk_apply(search_url: str, max_jobs: int = 50):
                 cookies = context.cookies()
                 with open(COOKIES_PATH, "w") as f:
                     json.dump(cookies, f, indent=2)
+                os.chmod(COOKIES_PATH, 0o600)  # Owner read/write only — no other apps can read your session
                 print(f"✅ Session saved to {COOKIES_PATH}")
 
             print("\n" + "=" * 55)
