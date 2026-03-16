@@ -1,13 +1,13 @@
-"""
-LinkedIn Easy Apply Bot
-=======================
-Automatically applies to LinkedIn Easy Apply jobs from a search URL.
-- AI-tailored cover letters and resumes via Ollama (local, free)
-- Saves application docs to a folder
-- Optional: Vibecraft live visualization (https://github.com/your-handle/vibecraft)
-
-Setup: See README.md for the full step-by-step checklist.
-"""
+# LinkedIn Easy Apply Bot
+# Crawls a LinkedIn job search URL and auto-submits Easy Apply applications.
+# Writes a custom cover letter and tailored resume per job using a local Ollama model.
+# All output is saved to ~/Job Applications — nothing is sent to the cloud.
+#
+# Before running:
+#   1. Fill in PERSONAL_INFO, BASE_RESUME, COVER_LETTER_EXAMPLES, YOUR_PERSONALITY below
+#   2. Install deps:  pip install -r requirements.txt && playwright install chromium
+#   3. Install Ollama: https://ollama.com  then  ollama pull llama3.2
+#   4. Run once to save your LinkedIn session, then pass a search URL
 
 import os
 import re
@@ -19,23 +19,24 @@ import threading
 from datetime import datetime
 from playwright.sync_api import sync_playwright, Page
 
-# ─────────────────────────────────────────────────────────────────
-# ✏️  STEP 1 — FILL IN YOUR PERSONAL INFO
-# ─────────────────────────────────────────────────────────────────
+
+# ---------------------------------------------------------------------------
+# Config — fill these in before your first run
+# ---------------------------------------------------------------------------
 
 PERSONAL_INFO = {
     "first_name":          "Jane",
     "last_name":           "Doe",
     "full_name":           "Jane Doe",
     "email":               "jane.doe@example.com",
-    "phone":               "5551234567",            # digits only, no dashes
+    "phone":               "5551234567",
     "city":                "Austin",
     "state":               "TX",
     "location":            "Austin, TX",
     "zip":                 "78701",
     "linkedin":            "https://www.linkedin.com/in/janedoe/",
     "years_experience":    "5",
-    "salary":              "100000",               # desired salary (numbers only)
+    "salary":              "100000",
     "gender":              "Decline to self-identify",
     "veteran":             "I am not a protected veteran",
     "disability":          "I do not have a disability",
@@ -44,12 +45,7 @@ PERSONAL_INFO = {
     "require_sponsorship": "No",
 }
 
-# ─────────────────────────────────────────────────────────────────
-# ✏️  STEP 2 — PASTE YOUR RESUME HERE
-#     Plain text is fine. Include work history, skills, education.
-#     The AI will tailor this to each job description.
-# ─────────────────────────────────────────────────────────────────
-
+# Paste your resume as plain text. Include real numbers — the AI uses them.
 BASE_RESUME = """
 Jane Doe
 jane.doe@example.com | Austin, TX | linkedin.com/in/janedoe
@@ -76,12 +72,7 @@ SKILLS
 - [Skill category]: [list skills]
 """
 
-# ─────────────────────────────────────────────────────────────────
-# ✏️  STEP 3 — WRITE YOUR COVER LETTER STYLE GUIDE
-#     Give 1-2 real examples of strong opening sentences you've written.
-#     This is the secret sauce — better examples = better AI output.
-# ─────────────────────────────────────────────────────────────────
-
+# 1-2 of your strongest cover letter openers. The AI studies these and matches your voice.
 COVER_LETTER_EXAMPLES = """
 EXAMPLE 1:
 "[Your best cover letter opening sentence — make it bold and specific]"
@@ -90,34 +81,30 @@ EXAMPLE 2:
 "[Another strong opening that references a real achievement with a number]"
 """
 
-# ─────────────────────────────────────────────────────────────────
-# ✏️  STEP 4 — WRITE YOUR PERSONALITY BLURB
-#     3-4 sentences the AI uses to match your voice in AI answers.
-# ─────────────────────────────────────────────────────────────────
-
+# 3-4 sentences the AI uses to match your personality in open-ended answers.
 YOUR_PERSONALITY = """
 [Your name] is a [your field] professional known for [your biggest strength].
 Key wins: [achievement 1], [achievement 2], [achievement 3].
 Excels at [what you do best] and brings a [adjective] mindset to every role.
 """
 
-# ─────────────────────────────────────────────────────────────────
-# ⚙️  CONFIG — Paths and settings (change if needed)
-# ─────────────────────────────────────────────────────────────────
+
+# ---------------------------------------------------------------------------
+# Paths and settings
+# ---------------------------------------------------------------------------
 
 COOKIES_PATH  = os.path.expanduser("~/linkedin_cookies.json")
 OUTPUT_DIR    = os.path.expanduser("~/Job Applications")
-OLLAMA_MODEL  = "llama3.2"          # Run: ollama pull llama3.2
+OLLAMA_MODEL  = "llama3.2"
 OLLAMA_URL    = "http://localhost:11434/v1"
-
-# Vibecraft live visualization (optional — leave as-is if not using)
 VIBECRAFT_URL = "http://localhost:4003"
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# ─────────────────────────────────────────────────────────────────
-# LOCAL AI — Ollama
-# ─────────────────────────────────────────────────────────────────
+
+# ---------------------------------------------------------------------------
+# Local AI via Ollama
+# ---------------------------------------------------------------------------
 
 try:
     from openai import OpenAI
@@ -201,12 +188,11 @@ Return ONLY the answer."""}]
         return "I have strong relevant experience and am eager to contribute to your team."
 
 
-# ─────────────────────────────────────────────────────────────────
-# VIBECRAFT INTEGRATION (optional)
-# ─────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Vibecraft integration (optional — silently skips if not running)
+# ---------------------------------------------------------------------------
 
 class VibecraftReporter:
-    """Posts live events to Vibecraft 3D visualization. Silently skips if offline."""
 
     def __init__(self):
         self.session_id = f"job-bot-{uuid.uuid4()}"
@@ -296,10 +282,6 @@ class VibecraftReporter:
 
 vc = VibecraftReporter()
 
-# ─────────────────────────────────────────────────────────────────
-# BACKGROUND WORKERS (visual flair in Vibecraft — optional)
-# ─────────────────────────────────────────────────────────────────
-
 WORKER_SCHEDULES = [
     ("Researcher 🔍", [
         ("WebSearch", "Searching company backgrounds", 6),
@@ -336,12 +318,77 @@ def start_background_workers():
         t.start()
 
 
-# ─────────────────────────────────────────────────────────────────
-# FORM FILLING
-# ─────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# CSS selectors — update here if LinkedIn changes their HTML
+# ---------------------------------------------------------------------------
+
+SELECTORS = {
+    "job_cards":       "li[data-occludable-job-id]",
+    "job_title":       ".job-card-list__title, strong",
+    "company_name":    ".job-card-container__company-name",
+    "easy_apply":      "button.jobs-apply-button:has-text('Easy Apply')",
+    "job_desc":        ".jobs-description, .job-details-jobs-unified-top-card__job-insight",
+    "already_applied": ".job-card-container__footer-item:has-text('Applied')",
+}
+
+
+def selector_health_check(page) -> bool:
+    print("\n🔬 Running selector health check...")
+
+    critical_ok = True
+
+    card_count = page.locator(SELECTORS["job_cards"]).count()
+    if card_count > 0:
+        print(f"  ✅ Job cards        ({SELECTORS['job_cards']}) — found {card_count}")
+    else:
+        print(f"  ❌ Job cards        ({SELECTORS['job_cards']}) — NOT FOUND")
+        print(f"     ↳ LinkedIn may have changed their job list HTML.")
+        print(f"     ↳ Inspect a job card in DevTools and update SELECTORS['job_cards'].")
+        critical_ok = False
+
+    if card_count > 0:
+        first_card = page.locator(SELECTORS["job_cards"]).first
+        title_ok   = first_card.locator(SELECTORS["job_title"]).count() > 0
+        company_ok = first_card.locator(SELECTORS["company_name"]).count() > 0
+        print(f"  {'✅' if title_ok   else '⚠️ '} Job title          ({SELECTORS['job_title']})")
+        print(f"  {'✅' if company_ok  else '⚠️ '} Company name       ({SELECTORS['company_name']})")
+        if not title_ok or not company_ok:
+            print(f"     ↳ Applications will still submit — folder names will be blank.")
+
+    desc_ok = page.locator(SELECTORS["job_desc"]).count() > 0
+    print(f"  {'✅' if desc_ok else '⚠️ '} Job description    ({SELECTORS['job_desc']})")
+    if not desc_ok:
+        print(f"     ↳ Can't read job descriptions — AI cover letters will be generic.")
+
+    if card_count > 0:
+        try:
+            page.locator(SELECTORS["job_cards"]).first.click()
+            time.sleep(1.5)
+            easy_ok = page.locator(SELECTORS["easy_apply"]).count() > 0
+            print(f"  {'✅' if easy_ok else '⚠️ '} Easy Apply button  ({SELECTORS['easy_apply']})")
+            if not easy_ok:
+                print(f"     ↳ First job may not have Easy Apply. Bot checks each job individually.")
+        except Exception:
+            print(f"  ⚠️  Easy Apply button  — could not check (card click failed)")
+
+    print()
+
+    if not critical_ok:
+        print("  ⛔ Critical selectors are broken — can't find job cards.")
+        print("     1. Open your LinkedIn job search in Chrome")
+        print("     2. Right-click a job card → Inspect")
+        print("     3. Find the <li> wrapping each job and update SELECTORS['job_cards']")
+        print("     4. Open an issue at https://github.com/coachpat123/linkedin-bot")
+        print()
+
+    return critical_ok
+
+
+# ---------------------------------------------------------------------------
+# Form filling
+# ---------------------------------------------------------------------------
 
 def fill_easy_apply(page: Page, job_description: str = ""):
-    """Fill all fields in an Easy Apply modal — moves forward without stopping."""
     try:
         try:
             modal = page.locator("div[role='dialog']").first
@@ -349,7 +396,6 @@ def fill_easy_apply(page: Page, job_description: str = ""):
         except Exception:
             scope = page
 
-        # Text inputs
         for inp in scope.locator("input[type='text']:visible, input[type='number']:visible, input[type='tel']:visible, input[type='email']:visible").all():
             try:
                 if inp.input_value():
@@ -390,12 +436,11 @@ def fill_easy_apply(page: Page, job_description: str = ""):
             except Exception:
                 pass
 
-        # Textareas
         for ta in scope.locator("textarea:visible").all():
             try:
                 if ta.input_value():
                     continue
-                ta_id = ta.get_attribute("id") or ""
+                ta_id    = ta.get_attribute("id") or ""
                 question = ""
                 try:
                     lbl = page.locator(f"label[for='{ta_id}']").first
@@ -411,7 +456,6 @@ def fill_easy_apply(page: Page, job_description: str = ""):
             except Exception:
                 pass
 
-        # Dropdowns
         for select in scope.locator("select:visible").all():
             try:
                 val = select.input_value()
@@ -470,7 +514,6 @@ def fill_easy_apply(page: Page, job_description: str = ""):
             except Exception:
                 pass
 
-        # Radio buttons
         for fieldset in scope.locator("fieldset").all():
             try:
                 legend = ""
@@ -499,7 +542,6 @@ def fill_easy_apply(page: Page, job_description: str = ""):
             except Exception:
                 pass
 
-        # Select existing resume if shown
         try:
             resume_radio = scope.locator("input[type='radio']").first
             if resume_radio.is_visible():
@@ -511,15 +553,15 @@ def fill_easy_apply(page: Page, job_description: str = ""):
         pass
 
 
-# ─────────────────────────────────────────────────────────────────
-# SAVE DOCS
-# ─────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Save application docs
+# ---------------------------------------------------------------------------
 
 def save_application_docs(company: str, title: str, resume: str, cover_letter: str):
-    safe_name = re.sub(r'[^\w\s-]', '', f"{company} - {title}").strip()
-    safe_name = re.sub(r'\s+', ' ', safe_name)
+    safe_name   = re.sub(r'[^\w\s-]', '', f"{company} - {title}").strip()
+    safe_name   = re.sub(r'\s+', ' ', safe_name)
     folder_name = f"{datetime.now().strftime('%Y%m%d')} - {safe_name}"
-    app_folder = os.path.join(OUTPUT_DIR, folder_name)
+    app_folder  = os.path.join(OUTPUT_DIR, folder_name)
     os.makedirs(app_folder, exist_ok=True)
     with open(os.path.join(app_folder, "resume.txt"), "w") as f:
         f.write(resume)
@@ -528,12 +570,12 @@ def save_application_docs(company: str, title: str, resume: str, cover_letter: s
     print(f"     📁 Saved docs: {app_folder}")
 
 
-# ─────────────────────────────────────────────────────────────────
-# APPLY TO ONE JOB
-# ─────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Apply to a single job
+# ---------------------------------------------------------------------------
 
 def apply_to_job(page: Page, card, search_url: str) -> dict:
-    title = ""
+    title  = ""
     company = ""
     result = {"status": "skipped", "title": "", "company": "", "timestamp": datetime.now().isoformat(), "notes": ""}
 
@@ -547,10 +589,9 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
         except Exception:
             pass
 
-        result["title"] = title
+        result["title"]   = title
         result["company"] = company
 
-        # Already applied?
         try:
             if card.locator(SELECTORS["already_applied"]).is_visible():
                 result["status"] = "already"
@@ -569,7 +610,6 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
         except Exception:
             pass
 
-        # AI docs
         tid = vc.tool_start("Write", f"Writing cover letter — {company}")
         cover_letter = write_cover_letter(job_desc, company, title)
         vc.tool_done("Write", tid)
@@ -580,7 +620,6 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
 
         save_application_docs(company, title, tailored_resume, cover_letter)
 
-        # Find Easy Apply button
         easy_apply = None
         try:
             page.wait_for_selector(
@@ -634,7 +673,6 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
         except Exception:
             return result
 
-        # Pre-fill cover letter field
         try:
             cl_field = page.locator("textarea[id*='cover'], textarea[placeholder*='cover']").first
             if cl_field.is_visible() and not cl_field.input_value():
@@ -642,9 +680,8 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
         except Exception:
             pass
 
-        # Step through form
         prev_btn = ""
-        stuck = 0
+        stuck    = 0
 
         for step in range(25):
             time.sleep(0.8)
@@ -707,7 +744,7 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
                         result["notes"] = "Stuck on form"
                         return result
                 else:
-                    stuck = 0
+                    stuck    = 0
                     prev_btn = txt
                 next_btn.click()
                 continue
@@ -727,7 +764,7 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
     except Exception as e:
         print(f"     ❌ Error: {e}")
         result["status"] = "error"
-        result["notes"] = str(e)
+        result["notes"]  = str(e)
         try:
             page.keyboard.press("Escape")
             time.sleep(0.5)
@@ -738,97 +775,14 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
     return result
 
 
-# ─────────────────────────────────────────────────────────────────
-# SELECTOR HEALTH CHECK
-# ─────────────────────────────────────────────────────────────────
-
-# These are the CSS selectors the bot depends on.
-# If LinkedIn updates their HTML, these will break first.
-# Update them here and the whole bot benefits.
-SELECTORS = {
-    "job_cards":    "li[data-occludable-job-id]",
-    "job_title":    ".job-card-list__title, strong",
-    "company_name": ".job-card-container__company-name",
-    "easy_apply":   "button.jobs-apply-button:has-text('Easy Apply')",
-    "job_desc":     ".jobs-description, .job-details-jobs-unified-top-card__job-insight",
-    "already_applied": ".job-card-container__footer-item:has-text('Applied')",
-}
-
-def selector_health_check(page) -> bool:
-    """
-    Verify key LinkedIn selectors still work before running the full batch.
-    Prints a pass/fail for each one. Returns False if critical selectors are broken.
-    """
-    print("\n🔬 Running selector health check...")
-    print("   (If LinkedIn updated their HTML, broken selectors will show here)\n")
-
-    critical_ok = True
-
-    # Check job cards — the most critical selector
-    card_count = page.locator(SELECTORS["job_cards"]).count()
-    if card_count > 0:
-        print(f"  ✅ Job cards        ({SELECTORS['job_cards']}) — found {card_count}")
-    else:
-        print(f"  ❌ Job cards        ({SELECTORS['job_cards']}) — NOT FOUND")
-        print(f"     ↳ LinkedIn may have changed their job list HTML.")
-        print(f"     ↳ Open browser DevTools on the search page, inspect a job card,")
-        print(f"       and find the new selector. Update SELECTORS['job_cards'] in the script.")
-        critical_ok = False
-
-    # Check title and company on the first card (non-critical — bot falls back to empty string)
-    if card_count > 0:
-        first_card = page.locator(SELECTORS["job_cards"]).first
-        title_ok = first_card.locator(SELECTORS["job_title"]).count() > 0
-        company_ok = first_card.locator(SELECTORS["company_name"]).count() > 0
-        print(f"  {'✅' if title_ok   else '⚠️ '} Job title          ({SELECTORS['job_title']})")
-        print(f"  {'✅' if company_ok  else '⚠️ '} Company name       ({SELECTORS['company_name']})")
-        if not title_ok or not company_ok:
-            print(f"     ↳ Title/company parsing broke — applications will still submit")
-            print(f"       but folder names and logs will show blank company/title.")
-
-    # Check job description panel (non-critical — AI gets less context)
-    desc_ok = page.locator(SELECTORS["job_desc"]).count() > 0
-    print(f"  {'✅' if desc_ok else '⚠️ '} Job description    ({SELECTORS['job_desc']})")
-    if not desc_ok:
-        print(f"     ↳ Can't read job descriptions — AI cover letters will be generic.")
-
-    # Check Easy Apply button (non-critical — checked per-job, skipped if missing)
-    # Click first card to trigger the detail pane, then check
-    if card_count > 0:
-        try:
-            page.locator(SELECTORS["job_cards"]).first.click()
-            time.sleep(1.5)
-            easy_ok = page.locator(SELECTORS["easy_apply"]).count() > 0
-            print(f"  {'✅' if easy_ok else '⚠️ '} Easy Apply button  ({SELECTORS['easy_apply']})")
-            if not easy_ok:
-                print(f"     ↳ First job may not have Easy Apply, or selector changed.")
-                print(f"       The bot will still check each job individually.")
-        except Exception:
-            print(f"  ⚠️  Easy Apply button  — could not check (card click failed)")
-
-    print()
-
-    if not critical_ok:
-        print("  ⛔ Critical selectors are broken. The bot cannot find job cards.")
-        print("     LinkedIn likely updated their HTML. Steps to fix:")
-        print("     1. Open your LinkedIn job search in Chrome")
-        print("     2. Right-click a job card → Inspect")
-        print("     3. Find the <li> element that wraps each job")
-        print("     4. Update SELECTORS['job_cards'] at the top of the script")
-        print("     5. Open an issue at https://github.com/coachpat123/linkedin-bot")
-        print()
-
-    return critical_ok
-
-
-# ─────────────────────────────────────────────────────────────────
-# MAIN RUNNER
-# ─────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Main runner
+# ---------------------------------------------------------------------------
 
 def run_bulk_apply(search_url: str, max_jobs: int = 50):
     log_file = f"{OUTPUT_DIR}/applied_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    results = []
-    stats = {"applied": 0, "skipped": 0, "already": 0, "error": 0}
+    results  = []
+    stats    = {"applied": 0, "skipped": 0, "already": 0, "error": 0}
 
     vc.start_run(search_url)
     start_background_workers()
@@ -857,7 +811,7 @@ def run_bulk_apply(search_url: str, max_jobs: int = 50):
                 cookies = context.cookies()
                 with open(COOKIES_PATH, "w") as f:
                     json.dump(cookies, f, indent=2)
-                os.chmod(COOKIES_PATH, 0o600)  # Owner read/write only — no other apps can read your session
+                os.chmod(COOKIES_PATH, 0o600)
                 print(f"✅ Session saved to {COOKIES_PATH}")
 
             print("\n" + "=" * 55)
@@ -868,17 +822,17 @@ def run_bulk_apply(search_url: str, max_jobs: int = 50):
             print(f"\n🔍 Loading search results...")
 
             from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-            parsed = urlparse(search_url)
+            parsed      = urlparse(search_url)
             keep_params = {k: v for k, v in parse_qs(parsed.query).items()
                            if k in ("keywords", "geoId", "distance", "f_LF", "f_WT", "f_E", "f_TPR", "sortBy", "location")}
-            clean_url = urlunparse(parsed._replace(path="/jobs/search/", query=urlencode(keep_params, doseq=True)))
+            clean_url   = urlunparse(parsed._replace(path="/jobs/search/", query=urlencode(keep_params, doseq=True)))
             print(f"  🧹 Clean URL: {clean_url}")
 
             page.goto(clean_url, wait_until="domcontentloaded", timeout=60000)
             time.sleep(3)
 
             current_url = page.url
-            page_title = page.title()
+            page_title  = page.title()
             print(f"  📍 {page_title}")
             print(f"  🔗 {current_url}")
 
@@ -901,7 +855,6 @@ def run_bulk_apply(search_url: str, max_jobs: int = 50):
                 page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 time.sleep(1)
 
-            # Health check — verify selectors before committing to the full run
             if not selector_health_check(page):
                 browser.close()
                 return
@@ -926,7 +879,7 @@ def run_bulk_apply(search_url: str, max_jobs: int = 50):
                 if i >= len(cards):
                     break
                 card = cards[i]
-                i += 1
+                i   += 1
 
                 result = apply_to_job(page, card, clean_url)
                 results.append(result)
@@ -971,17 +924,12 @@ def run_bulk_apply(search_url: str, max_jobs: int = 50):
         vc.finish()
 
 
-# ─────────────────────────────────────────────────────────────────
-# ENTRY POINT
-# ─────────────────────────────────────────────────────────────────
-
 if __name__ == "__main__":
     import sys
 
     if len(sys.argv) >= 2:
-        # Called from CLI / n8n / Telegram automation
         search_url = sys.argv[1]
-        max_jobs = int(sys.argv[2]) if len(sys.argv) >= 3 and sys.argv[2].isdigit() else 20
+        max_jobs   = int(sys.argv[2]) if len(sys.argv) >= 3 and sys.argv[2].isdigit() else 20
         print(f"\n🤖 Running (triggered externally)")
         print(f"   URL: {search_url}")
         print(f"   Max jobs: {max_jobs}")
