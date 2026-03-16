@@ -1,13 +1,6 @@
 # LinkedIn Easy Apply Bot
-# Crawls a LinkedIn job search URL and auto-submits Easy Apply applications.
-# Writes a custom cover letter and tailored resume per job using a local Ollama model.
-# All output is saved to ~/Job Applications — nothing is sent to the cloud.
-#
-# Before running:
-#   1. Fill in PERSONAL_INFO, BASE_RESUME, COVER_LETTER_EXAMPLES, YOUR_PERSONALITY below
-#   2. Install deps:  pip install -r requirements.txt && playwright install chromium
-#   3. Install Ollama: https://ollama.com  then  ollama pull llama3.2
-#   4. Run once to save your LinkedIn session, then pass a search URL
+# Fill in your info below, then run: python3 linkedin_bot.py
+# Docs: README.md
 
 import os
 import re
@@ -18,11 +11,6 @@ import urllib.request
 import threading
 from datetime import datetime
 from playwright.sync_api import sync_playwright, Page
-
-
-# ---------------------------------------------------------------------------
-# Config — fill these in before your first run
-# ---------------------------------------------------------------------------
 
 PERSONAL_INFO = {
     "first_name":          "Jane",
@@ -88,11 +76,6 @@ Key wins: [achievement 1], [achievement 2], [achievement 3].
 Excels at [what you do best] and brings a [adjective] mindset to every role.
 """
 
-
-# ---------------------------------------------------------------------------
-# Paths and settings
-# ---------------------------------------------------------------------------
-
 COOKIES_PATH  = os.path.expanduser("~/linkedin_cookies.json")
 OUTPUT_DIR    = os.path.expanduser("~/Job Applications")
 OLLAMA_MODEL  = "llama3.2"
@@ -101,11 +84,6 @@ VIBECRAFT_URL = "http://localhost:4003"
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-
-# ---------------------------------------------------------------------------
-# Local AI via Ollama
-# ---------------------------------------------------------------------------
-
 try:
     from openai import OpenAI
     ai = OpenAI(base_url=f"{OLLAMA_URL}/v1", api_key="ollama")
@@ -113,7 +91,6 @@ try:
 except ImportError:
     AI_AVAILABLE = False
     print("⚠️  openai package not installed — AI cover letters disabled. Run: pip install openai")
-
 
 def write_cover_letter(job_description: str, company: str, title: str) -> str:
     if not AI_AVAILABLE:
@@ -148,7 +125,6 @@ Return ONLY the cover letter text."""}]
     except Exception as e:
         return f"Cover letter generation failed ({e}). Please write manually."
 
-
 def tailor_resume(job_description: str) -> str:
     if not AI_AVAILABLE:
         return BASE_RESUME
@@ -166,7 +142,6 @@ BASE RESUME: {BASE_RESUME}"""}]
         return msg.choices[0].message.content
     except Exception:
         return BASE_RESUME
-
 
 def answer_question(question: str, job_description: str) -> str:
     if not AI_AVAILABLE:
@@ -186,11 +161,6 @@ Return ONLY the answer."""}]
         return msg.choices[0].message.content
     except Exception:
         return "I have strong relevant experience and am eager to contribute to your team."
-
-
-# ---------------------------------------------------------------------------
-# Vibecraft integration (optional — silently skips if not running)
-# ---------------------------------------------------------------------------
 
 class VibecraftReporter:
 
@@ -279,7 +249,6 @@ class VibecraftReporter:
                 pass
         self._managed_ids.clear()
 
-
 vc = VibecraftReporter()
 
 WORKER_SCHEDULES = [
@@ -299,7 +268,6 @@ WORKER_SCHEDULES = [
     ]),
 ]
 
-
 def _run_worker(worker: VibecraftReporter, name: str, schedule: list):
     worker._post(worker._event("session_start", source="startup"))
     worker._post(worker._event("user_prompt_submit", prompt=f"{name} is on the job"))
@@ -310,17 +278,11 @@ def _run_worker(worker: VibecraftReporter, name: str, schedule: list):
             worker.tool_done(tool, tid)
             time.sleep(1)
 
-
 def start_background_workers():
     for name, schedule in WORKER_SCHEDULES:
         worker = vc.register_worker(name)
         t = threading.Thread(target=_run_worker, args=(worker, name, schedule), daemon=True)
         t.start()
-
-
-# ---------------------------------------------------------------------------
-# CSS selectors — update here if LinkedIn changes their HTML
-# ---------------------------------------------------------------------------
 
 SELECTORS = {
     "job_cards":       "li[data-occludable-job-id]",
@@ -330,7 +292,6 @@ SELECTORS = {
     "job_desc":        ".jobs-description, .job-details-jobs-unified-top-card__job-insight",
     "already_applied": ".job-card-container__footer-item:has-text('Applied')",
 }
-
 
 def selector_health_check(page) -> bool:
     print("\n🔬 Running selector health check...")
@@ -382,11 +343,6 @@ def selector_health_check(page) -> bool:
         print()
 
     return critical_ok
-
-
-# ---------------------------------------------------------------------------
-# Form filling
-# ---------------------------------------------------------------------------
 
 def fill_easy_apply(page: Page, job_description: str = ""):
     try:
@@ -552,11 +508,6 @@ def fill_easy_apply(page: Page, job_description: str = ""):
     except Exception:
         pass
 
-
-# ---------------------------------------------------------------------------
-# Save application docs
-# ---------------------------------------------------------------------------
-
 def save_application_docs(company: str, title: str, resume: str, cover_letter: str):
     safe_name   = re.sub(r'[^\w\s-]', '', f"{company} - {title}").strip()
     safe_name   = re.sub(r'\s+', ' ', safe_name)
@@ -568,11 +519,6 @@ def save_application_docs(company: str, title: str, resume: str, cover_letter: s
     with open(os.path.join(app_folder, "cover_letter.txt"), "w") as f:
         f.write(cover_letter)
     print(f"     📁 Saved docs: {app_folder}")
-
-
-# ---------------------------------------------------------------------------
-# Apply to a single job
-# ---------------------------------------------------------------------------
 
 def apply_to_job(page: Page, card, search_url: str) -> dict:
     title  = ""
@@ -774,11 +720,6 @@ def apply_to_job(page: Page, card, search_url: str) -> dict:
 
     return result
 
-
-# ---------------------------------------------------------------------------
-# Main runner
-# ---------------------------------------------------------------------------
-
 def run_bulk_apply(search_url: str, max_jobs: int = 50):
     log_file = f"{OUTPUT_DIR}/applied_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     results  = []
@@ -922,7 +863,6 @@ def run_bulk_apply(search_url: str, max_jobs: int = 50):
         vc.notify(f"💥 Bot crashed: {e}")
     finally:
         vc.finish()
-
 
 if __name__ == "__main__":
     import sys
