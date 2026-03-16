@@ -1,6 +1,14 @@
-# LinkedIn Easy Apply Bot
-# Fill in your info below, then run: python3 linkedin_bot.py
-# Docs: README.md
+# ╔══════════════════════════════════════════════════════════════╗
+# ║  LinkedIn Easy Apply Bot                                     ║
+# ║  Run: python3 linkedin_bot.py                                ║
+# ║  Docs: README.md                                             ║
+# ║                                                              ║
+# ║  SETUP — fill in the 4 variables below before first run:     ║
+# ║    PERSONAL_INFO       your name, email, phone, location     ║
+# ║    BASE_RESUME         paste your resume as plain text       ║
+# ║    COVER_LETTER_EXAMPLES  1-2 of your best opening lines     ║
+# ║    YOUR_PERSONALITY    3-4 sentences about your background   ║
+# ╚══════════════════════════════════════════════════════════════╝
 
 import os
 import re
@@ -33,7 +41,6 @@ PERSONAL_INFO = {
     "require_sponsorship": "No",
 }
 
-# Paste your resume as plain text. Include real numbers — the AI uses them.
 BASE_RESUME = """
 Jane Doe
 jane.doe@example.com | Austin, TX | linkedin.com/in/janedoe
@@ -60,7 +67,6 @@ SKILLS
 - [Skill category]: [list skills]
 """
 
-# 1-2 of your strongest cover letter openers. The AI studies these and matches your voice.
 COVER_LETTER_EXAMPLES = """
 EXAMPLE 1:
 "[Your best cover letter opening sentence — make it bold and specific]"
@@ -69,7 +75,6 @@ EXAMPLE 2:
 "[Another strong opening that references a real achievement with a number]"
 """
 
-# 3-4 sentences the AI uses to match your personality in open-ended answers.
 YOUR_PERSONALITY = """
 [Your name] is a [your field] professional known for [your biggest strength].
 Key wins: [achievement 1], [achievement 2], [achievement 3].
